@@ -2,9 +2,8 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Bé Quét Mã Khám Phá</title>
-  <!-- Thư viện quét QR -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,7 +14,7 @@
       overflow: hidden;
     }
 
-    /* 1. Màn hình Chào (Bắt buộc để xin quyền Camera & Âm thanh) */
+    /* 1. Màn hình chào */
     #start-screen {
       position: fixed; inset: 0;
       background: linear-gradient(135deg, #ff7043, #ff5722);
@@ -24,12 +23,12 @@
       color: #fff; text-align: center;
       padding: 24px; z-index: 100;
     }
-    #start-screen h1 { font-size: 2rem; margin-bottom: 12px; }
-    #start-screen p { font-size: 1.15rem; margin-bottom: 28px; opacity: 0.95; }
+    #start-screen h1 { font-size: 1.8rem; margin-bottom: 12px; }
+    #start-screen p { font-size: 1.1rem; margin-bottom: 24px; opacity: 0.95; }
     .btn-start {
       background: #ffeb3b; color: #d84315;
-      border: none; padding: 18px 40px;
-      font-size: 1.35rem; font-weight: bold;
+      border: none; padding: 16px 36px;
+      font-size: 1.25rem; font-weight: bold;
       border-radius: 50px; cursor: pointer;
       box-shadow: 0 6px 18px rgba(0,0,0,0.3);
     }
@@ -49,38 +48,78 @@
     }
     .scan-overlay {
       position: absolute;
-      width: 250px; height: 250px;
-      border: 5px dashed #ffeb3b;
-      border-radius: 24px;
+      width: 240px; height: 240px;
+      border: 4px dashed #ffeb3b;
+      border-radius: 20px;
       pointer-events: none;
       box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.55);
     }
     .scan-guide {
       position: absolute;
-      top: calc(50% + 150px);
-      color: #fff; font-size: 1.15rem; font-weight: 700;
+      top: calc(50% + 140px);
+      color: #fff; font-size: 1.1rem; font-weight: 700;
       text-shadow: 0 2px 4px rgba(0,0,0,0.9);
       pointer-events: none; text-align: center; width: 90%;
     }
 
-    /* 3. Trình phát Video ngay trên trang (Toàn màn hình & Tự xoay ngang) */
+    /* 3. Khung phát video toàn màn hình */
     #player-view {
       position: fixed; inset: 0;
       display: none; background: #000; z-index: 50;
-      width: 100vw; height: 100vh;
+      overflow: hidden;
     }
+
+    /* Ép xoay ngang 90 độ bằng CSS nếu máy đang cầm dọc (Hỗ trợ 100% cả iOS & Android) */
+    @media (orientation: portrait) {
+      .rotate-container {
+        width: 100vh !important;
+        height: 100vw !important;
+        transform: rotate(90deg);
+        transform-origin: top left;
+        position: absolute;
+        top: 0;
+        left: 100vw;
+      }
+    }
+
+    @media (orientation: landscape) {
+      .rotate-container {
+        width: 100vw !important;
+        height: 100vh !important;
+      }
+    }
+
     #edu-video {
       width: 100%; height: 100%;
       object-fit: contain;
       background: #000;
     }
+
     .btn-back {
       position: absolute; top: 16px; left: 16px;
       background: rgba(255, 255, 255, 0.85);
       color: #000; border: none;
-      padding: 12px 20px; border-radius: 30px;
-      font-weight: 800; font-size: 1.05rem;
+      padding: 10px 18px; border-radius: 30px;
+      font-weight: 800; font-size: 1rem;
       cursor: pointer; z-index: 60;
+    }
+
+    /* Nút bật tiếng nhấp nháy thu hút bé */
+    #unmute-badge {
+      display: none;
+      position: absolute;
+      bottom: 24px; right: 24px;
+      background: #e91e63; color: #fff;
+      padding: 12px 20px; border-radius: 30px;
+      font-size: 1.1rem; font-weight: bold;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      cursor: pointer; z-index: 70;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
     }
   </style>
 </head>
@@ -89,21 +128,24 @@
   <!-- Màn hình chào -->
   <div id="start-screen">
     <h1>Bé Vui Khám Phá 🌟</h1>
-    <p>Chạm vào nút để bật máy quét thẻ bài học nhé!</p>
+    <p>Chạm vào nút để kích hoạt máy quét bài học nhé!</p>
     <button class="btn-start" onclick="initApp()">Bắt Đầu Quét Thẻ 🎬</button>
   </div>
 
-  <!-- Khung Camera quét mã -->
+  <!-- Màn hình quét -->
   <div id="scanner-view">
     <div id="reader"></div>
     <div class="scan-overlay"></div>
-    <div class="scan-guide">Bé hãy giơ thẻ QR vào giữa ô vuông nhé! ✨</div>
+    <div class="scan-guide">Bé hãy đưa thẻ QR vào ô vàng nhé! ✨</div>
   </div>
 
-  <!-- Trình phát video nằm cùng trang -->
+  <!-- Trình phát Video -->
   <div id="player-view">
-    <button class="btn-back" onclick="resumeScanning()">◀ Quét bài khác</button>
-    <video id="edu-video" playsinline webkit-playsinline controls></video>
+    <div class="rotate-container" id="rotator">
+      <button class="btn-back" onclick="resumeScanning()">◀ Quét bài khác</button>
+      <div id="unmute-badge" onclick="unmuteVideo()">🔊 Chạm bật tiếng</div>
+      <video id="edu-video" playsinline webkit-playsinline controls></video>
+    </div>
   </div>
 
   <script>
@@ -112,6 +154,7 @@
     const scannerView = document.getElementById('scanner-view');
     const playerView = document.getElementById('player-view');
     const videoElement = document.getElementById('edu-video');
+    const unmuteBadge = document.getElementById('unmute-badge');
 
     function initApp() {
       document.getElementById('start-screen').style.display = 'none';
@@ -126,10 +169,9 @@
 
       const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 }
+        qrbox: { width: 240, height: 240 }
       };
 
-      // Tự động tìm camera sau
       Html5Qrcode.getCameras().then(devices => {
         if (devices && devices.length > 0) {
           let backCamera = devices.find(d => 
@@ -149,12 +191,10 @@
     function fallbackStart(config) {
       html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
         .catch(err => {
-          console.error("Camera error:", err);
-          alert("Vui lòng cấp quyền truy cập Camera trong Cài đặt trình duyệt nhé!");
+          alert("Vui lòng cấp quyền Camera trong Cài đặt trình duyệt nhé!");
         });
     }
 
-    // Khi quét trúng mã QR
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
@@ -162,12 +202,9 @@
       let scannedContent = decodedText.trim();
       let videoSrc = "";
 
-      // 1. Nếu mã QR chứa link file trực tiếp (http... hoặc videos/...)
       if (scannedContent.endsWith('.mp4') || scannedContent.startsWith('http')) {
         videoSrc = scannedContent;
-      } 
-      // 2. Nếu mã QR chỉ chứa tên ngắn (ví dụ: video1)
-      else {
+      } else {
         videoSrc = `videos/${scannedContent}.mp4`;
       }
 
@@ -175,59 +212,59 @@
     }
 
     async function playVideoInline(sourceUrl) {
-      // Tắt camera tạm thời
+      // 1. Tắt camera
       if (html5QrCode && html5QrCode.isScanning) {
         await html5QrCode.stop();
       }
 
-      // Ẩn camera, hiện trình phát video NGAY TRÊN TRANG (không đi đâu cả)
       scannerView.style.display = 'none';
       playerView.style.display = 'block';
 
-      // Yêu cầu tự xoay ngang màn hình và toàn màn hình
+      // 2. Thử xoay hệ thống nếu hỗ trợ, nếu không CSS @media ở trên sẽ tự xử lý xoay 90 độ
       try {
-        if (playerView.requestFullscreen) {
-          await playerView.requestFullscreen();
-        } else if (playerView.webkitRequestFullscreen) {
-          await playerView.webkitRequestFullscreen();
-        }
-
         if (screen.orientation && screen.orientation.lock) {
           await screen.orientation.lock('landscape');
         }
-      } catch (err) {
-        console.log("Xoay ngang màn hình không được hỗ trợ trên thiết bị này:", err);
+      } catch (e) {}
+
+      // 3. Tải video
+      videoElement.src = sourceUrl;
+
+      // 4. Cơ chế Autoplay đảm bảo 100% thành công:
+      // Thử phát có tiếng trước
+      videoElement.muted = false;
+      let playPromise = videoElement.play();
+
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          // Nếu trình duyệt chặn do có tiếng -> Mute rồi phát ngay lập tức
+          console.log("Trình duyệt chặn tiếng, chuyển sang phát mute:", error);
+          videoElement.muted = true;
+          videoElement.play();
+          unmuteBadge.style.display = 'block'; // Hiện nút "Bật tiếng" cho bé bấm
+        });
       }
 
-      // Nạp link video vừa quét được và tự động play
-      videoElement.src = sourceUrl;
-      videoElement.play().catch(e => console.log("Lỗi autoplay:", e));
-
-      // Khi bé xem hết bài, tự động thoát xoay ngang và bật lại camera quét
       videoElement.onended = () => {
         resumeScanning();
       };
     }
 
+    function unmuteVideo() {
+      videoElement.muted = false;
+      unmuteBadge.style.display = 'none';
+    }
+
     async function resumeScanning() {
       videoElement.pause();
       videoElement.currentTime = 0;
+      unmuteBadge.style.display = 'none';
 
-      // Thoát Fullscreen và mở khóa xoay màn hình
       try {
         if (screen.orientation && screen.orientation.unlock) {
           screen.orientation.unlock();
         }
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-          if (document.exitFullscreen) {
-            await document.exitFullscreen();
-          } else if (document.webkitExitFullscreen) {
-            await document.webkitExitFullscreen();
-          }
-        }
-      } catch (e) {
-        console.log(e);
-      }
+      } catch (e) {}
 
       playerView.style.display = 'none';
       scannerView.style.display = 'flex';
