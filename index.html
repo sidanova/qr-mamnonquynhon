@@ -14,7 +14,7 @@
       overflow: hidden;
     }
 
-    /* 1. Màn hình Chào / Kích hoạt Camera */
+    /* 1. Màn hình Chào */
     #start-screen {
       position: fixed; inset: 0;
       background: linear-gradient(135deg, #4CAF50, #2E7D32);
@@ -126,21 +126,57 @@
         qrbox: { width: 240, height: 240 }
       };
 
-      // Gọi camera sau với quyền người dùng kích hoạt
+      // Tối ưu Android: Lấy danh sách camera thực tế của thiết bị thay vì ép "environment"
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length > 0) {
+          // Tìm camera sau (back camera) trong danh sách thiết bị
+          let backCamera = devices.find(device => 
+            device.label.toLowerCase().includes("back") || 
+            device.label.toLowerCase().includes("sau") || 
+            device.label.toLowerCase().includes("environment")
+          );
+
+          // Nếu không tìm thấy tên cụ thể, lấy camera cuối cùng trong danh sách (thường là camera sau)
+          const cameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
+
+          html5QrCode.start(
+            cameraId,
+            config,
+            onScanSuccess
+          ).catch(err => {
+            console.warn("Lỗi khởi động camera bằng ID, chuyển sang phương án dự phòng 1...");
+            fallbackStart1(config);
+          });
+        } else {
+          fallbackStart1(config);
+        }
+      }).catch(err => {
+        console.warn("Không lấy được danh sách camera, thử phương án dự phòng...");
+        fallbackStart1(config);
+      });
+    }
+
+    // Phương án dự phòng 1: Gọi camera sau tự nhiên không cưỡng ép ID
+    function fallbackStart1(config) {
       html5QrCode.start(
-        { facingMode: { exact: "environment" } },
+        { facingMode: "environment" },
         config,
         onScanSuccess
-      ).catch(() => {
-        // Dự phòng cho máy tính hoặc thiết bị không có cờ "exact environment"
-        html5QrCode.start(
-          { facingMode: "user" },
-          config,
-          onScanSuccess
-        ).catch(err => {
-          alert("Không thể mở Camera: Vui lòng vào Cài đặt trình duyệt để Cấp quyền Camera cho trang web.");
-          console.error(err);
-        });
+      ).catch(err => {
+        console.warn("Lỗi phương án 1, chuyển sang phương án dự phòng 2 (user/default)...");
+        fallbackStart2(config);
+      });
+    }
+
+    // Phương án dự phòng 2: Cho phép camera trước hoặc camera mặc định của hệ thống
+    function fallbackStart2(config) {
+      html5QrCode.start(
+        { facingMode: "user" },
+        config,
+        onScanSuccess
+      ).catch(err => {
+        alert("Ứng dụng không thể mở máy ảnh. Hãy kiểm tra lại quyền truy cập Camera của trình duyệt trên máy nhé!");
+        console.error("Camera hoàn toàn bị chặn:", err);
       });
     }
 
@@ -149,6 +185,7 @@
       isProcessing = true;
 
       let videoId = decodedText.trim();
+      // Tách ID video nếu bé quét trúng link URL đầy đủ
       if (videoId.includes('?v=')) {
         videoId = new URL(videoId).searchParams.get('v');
       } else if (videoId.startsWith('http')) {
@@ -169,7 +206,11 @@
 
       const videoElement = document.getElementById('edu-video');
       videoElement.src = `videos/${videoId}.mp4`;
-      videoElement.play().catch(e => console.log("Lỗi autoplay âm thanh:", e));
+      
+      // Chạy video
+      videoElement.play().catch(e => {
+        console.log("Cần chạm màn hình để phát tiếng:", e);
+      });
 
       videoElement.onended = () => {
         resumeScanning();
