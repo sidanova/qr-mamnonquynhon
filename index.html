@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Bé Quét Mã Khám Phá</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, html {
@@ -14,119 +14,153 @@
       overflow: hidden;
     }
 
-    /* Khung hiển thị Camera */
-    #scanner-view {
+    /* 1. Màn hình Chào ban đầu */
+    #start-screen {
       position: fixed; inset: 0;
+      background: linear-gradient(135deg, #ff7043, #ff5722);
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
+      color: #fff; text-align: center;
+      padding: 24px; z-index: 100;
+    }
+    #start-screen h1 { font-size: 2rem; margin-bottom: 12px; }
+    #start-screen p { font-size: 1.15rem; margin-bottom: 28px; opacity: 0.95; }
+    .btn-start {
+      background: #ffeb3b; color: #d84315;
+      border: none; padding: 18px 40px;
+      font-size: 1.35rem; font-weight: bold;
+      border-radius: 50px; cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
+    }
+    .btn-start:active { transform: scale(0.96); }
+
+    /* 2. Màn hình Camera quét QR */
+    #scanner-view {
+      position: fixed; inset: 0;
+      display: none; justify-content: center; align-items: center;
     }
     #reader {
-      width: 100%; height: 100%;
-      object-fit: cover;
+      width: 100% !important; height: 100% !important;
+      border: none !important;
     }
     #reader video {
       object-fit: cover !important;
-      width: 100% !important;
-      height: 100% !important;
+      width: 100% !important; height: 100% !important;
     }
-
-    /* Khung viền chỉ dẫn cho bé giơ thẻ */
     .scan-overlay {
       position: absolute;
       width: 250px; height: 250px;
-      border: 4px dashed #ffeb3b;
+      border: 5px dashed #ffeb3b;
       border-radius: 24px;
       pointer-events: none;
-      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.45);
-      display: flex; justify-content: center; align-items: center;
+      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.55);
     }
     .scan-guide {
       position: absolute;
-      top: calc(50% + 145px);
-      color: #fff;
-      font-size: 1.15rem;
-      font-weight: 600;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.8);
-      pointer-events: none;
-      text-align: center;
-      padding: 0 20px;
+      top: calc(50% + 150px);
+      color: #fff; font-size: 1.15rem; font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+      pointer-events: none; text-align: center; width: 90%;
     }
 
-    /* Khung phát video */
+    /* 3. Màn hình phát video toàn màn hình ngang */
     #player-view {
       position: fixed; inset: 0;
-      display: none;
-      background: #000;
-      z-index: 10;
+      display: none; background: #000; z-index: 50;
+      width: 100vw; height: 100vh;
     }
     #edu-video {
       width: 100%; height: 100%;
       object-fit: contain;
+      background: #000;
     }
-
-    /* Nút quay lại camera cho bé/cô giáo */
     .btn-back {
-      position: absolute;
-      top: 16px; left: 16px;
+      position: absolute; top: 16px; left: 16px;
       background: rgba(255, 255, 255, 0.85);
-      color: #111;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 1rem;
-      cursor: pointer;
-      z-index: 20;
+      color: #000; border: none;
+      padding: 12px 20px; border-radius: 30px;
+      font-weight: 800; font-size: 1.05rem;
+      cursor: pointer; z-index: 60;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
   </style>
 </head>
 <body>
 
-  <!-- 1. Màn hình quét QR -->
+  <!-- Màn hình chào -->
+  <div id="start-screen">
+    <h1>Bé Vui Khám Phá 🌟</h1>
+    <p>Chạm vào nút bên dưới để mở ống kính quét thẻ bài học nhé!</p>
+    <button class="btn-start" onclick="initApp()">Bé Bắt Đầu Xem 🎬</button>
+  </div>
+
+  <!-- Camera quét -->
   <div id="scanner-view">
     <div id="reader"></div>
     <div class="scan-overlay"></div>
-    <div class="scan-guide">Bé hãy giơ thẻ vào giữa ô vuông nhé! ✨</div>
+    <div class="scan-guide">Bé hãy giơ thẻ QR vào giữa ô vuông nhé! ✨</div>
   </div>
 
-  <!-- 2. Màn hình phát video -->
+  <!-- Phát Video -->
   <div id="player-view">
-    <button class="btn-back" onclick="resumeScanning()">◀ Quét thẻ khác</button>
-    <video id="edu-video" playsinline controls></video>
+    <button class="btn-back" onclick="resumeScanning()">◀ Quét bài khác</button>
+    <video id="edu-video" playsinline webkit-playsinline controls></video>
   </div>
 
   <script>
+    let html5QrCode = null;
+    let isProcessing = false;
     const scannerView = document.getElementById('scanner-view');
     const playerView = document.getElementById('player-view');
     const videoElement = document.getElementById('edu-video');
-    
-    let html5QrCode = null;
-    let isProcessing = false;
+
+    async function initApp() {
+      document.getElementById('start-screen').style.display = 'none';
+      scannerView.style.display = 'flex';
+      startScanner();
+    }
 
     function startScanner() {
-      html5QrCode = new Html5Qrcode("reader");
-      const config = { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: window.innerHeight / window.innerWidth
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 }
       };
 
-      // Yêu cầu camera sau (environment)
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-      ).catch(err => {
-        console.error("Không thể bật camera:", err);
-        alert("Vui lòng cấp quyền truy cập Camera để bé quét thẻ nhé!");
-      });
+      // Tự động tìm camera sau trên thiết bị
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length > 0) {
+          let backCamera = devices.find(d => 
+            d.label.toLowerCase().includes("back") || 
+            d.label.toLowerCase().includes("sau") || 
+            d.label.toLowerCase().includes("environment")
+          );
+          const cameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
+
+          html5QrCode.start(cameraId, config, onScanSuccess)
+            .catch(() => fallbackStart(config));
+        } else {
+          fallbackStart(config);
+        }
+      }).catch(() => fallbackStart(config));
+    }
+
+    function fallbackStart(config) {
+      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+          console.error("Camera error:", err);
+          alert("Vui lòng cấp quyền truy cập Camera trong Cài đặt trình duyệt nhé!");
+        });
     }
 
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
 
-      // Mã QR có thể chứa URL hoặc chỉ tên file (VD: 'video1' hoặc 'https://.../?v=video1')
       let videoId = decodedText.trim();
       if (videoId.includes('?v=')) {
         videoId = new URL(videoId).searchParams.get('v');
@@ -139,7 +173,7 @@
     }
 
     async function playVideo(videoId) {
-      // Tạm dừng camera để tiết kiệm pin và tránh quét trùng
+      // 1. Tạm dừng quét
       if (html5QrCode && html5QrCode.isScanning) {
         await html5QrCode.stop();
       }
@@ -147,29 +181,57 @@
       scannerView.style.display = 'none';
       playerView.style.display = 'block';
 
-      videoElement.src = `videos/${videoId}.mp4`;
-      
-      videoElement.play().catch(e => {
-        console.log("Cần chạm để phát âm thanh:", e);
-      });
+      // 2. Kích hoạt toàn màn hình và Tự động xoay ngang màn hình (Landscape)
+      try {
+        if (playerView.requestFullscreen) {
+          await playerView.requestFullscreen();
+        } else if (playerView.webkitRequestFullscreen) {
+          await playerView.webkitRequestFullscreen();
+        }
 
-      // Tự động quay lại màn hình camera khi video kết thúc
+        // Khóa màn hình xoay ngang (áp dụng rất nhạy trên Android Chrome)
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+        }
+      } catch (err) {
+        console.log("Xoay ngang màn hình tự động không được hỗ trợ bởi thiết bị này:", err);
+      }
+
+      // 3. Tải và phát video
+      videoElement.src = `videos/${videoId}.mp4`;
+      videoElement.play().catch(e => console.log("Lỗi autoplay:", e));
+
+      // 4. Khi video kết thúc, tự thoát toàn màn hình và quay về camera
       videoElement.onended = () => {
         resumeScanning();
       };
     }
 
-    function resumeScanning() {
+    async function resumeScanning() {
       videoElement.pause();
       videoElement.currentTime = 0;
+
+      // Mở khóa xoay màn hình và thoát Fullscreen
+      try {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            await document.webkitExitFullscreen();
+          }
+        }
+      } catch (e) {
+        console.log(e);
+      }
+
       playerView.style.display = 'none';
       scannerView.style.display = 'flex';
       isProcessing = false;
       startScanner();
     }
-
-    // Tự động khởi động camera khi vừa tải trang
-    window.addEventListener('DOMContentLoaded', startScanner);
   </script>
 </body>
 </html>
