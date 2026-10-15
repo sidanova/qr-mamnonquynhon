@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Công Cụ Tạo Thẻ QR Mầm Non Quy Nhơn</title>
+  <!-- Thư viện tạo mã QR nét cao -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Quicksand", system-ui, -apple-system, sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      padding: 20px;
+    }
+
+    /* Bảng điều khiển (Control Panel) */
+    .dashboard {
+      max-width: 960px;
+      margin: 0 auto 30px;
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .dashboard h2 {
+      color: #1b5e20;
+      margin-bottom: 8px;
+    }
+    .dashboard p {
+      color: #666;
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .form-grid input {
+      padding: 10px 14px;
+      border: 1px solid #cfd8dc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    .form-grid input:focus {
+      border-color: #4caf50;
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-add { background: #0288d1; color: #fff; }
+    .btn-print { background: #2e7d32; color: #fff; margin-left: auto; }
+    .btn-reset { background: #f4511e; color: #fff; }
+
+    /* Bảng danh sách bài học */
+    .table-container {
+      margin-top: 20px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid #eceff1;
+      padding: 10px;
+      text-align: left;
+    }
+    th { background: #f8f9fa; }
+    .btn-del {
+      background: #e53935;
+      color: #fff;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+    }
+
+    /* Khu vực hiển thị thẻ in (Khổ A4) */
+    .sheet {
+      max-width: 820px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    /* Thiết kế thẻ bo viền màu cầu vồng theo mẫu */
+    .card-border-wrap {
+      background: linear-gradient(135deg, #03a9f4, #8bc34a, #ffeb3b, #ff5722, #e91e63, #9c27b0);
+      padding: 14px;
+      border-radius: 28px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      page-break-inside: avoid;
+    }
+    .card-content {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-height: 380px;
+      justify-content: space-between;
+    }
+
+    .card-header {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #212121;
+    }
+    .card-icon {
+      font-size: 4.8rem;
+      line-height: 1;
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 90px;
+    }
+    .card-icon img {
+      max-height: 85px;
+      max-width: 110px;
+      object-fit: contain;
+    }
+    .card-sub {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #d32f2f;
+      margin-bottom: 8px;
+    }
+    .qr-container {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      display: inline-block;
+    }
+    .qr-container img { display: block; }
+    .card-footer {
+      font-size: 0.85rem;
+      color: #757575;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* Thiết lập cho chế độ In (Ctrl + P) */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .dashboard { display: none; }
+      .sheet {
+        max-width: 100%;
+        gap: 16px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .card-border-wrap {
+        box-shadow: none;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BẢNG ĐIỀU KHIỂN & NHẬP LIỆU -->
+  <div class="dashboard">
+    <h2>🛠️ Công Cụ Soạn Thảo & In Thẻ Flashcard QR</h2>
+    <p>Nhập thông tin bên dưới để tự động tạo bộ thẻ in tương thích 100% với ứng dụng quét mầm non.</p>
+
+    <div class="form-grid">
+      <input type="text" id="inp-id" placeholder="Tên file video (VD: video1, qua-tao)" required>
+      <input type="text" id="inp-title" placeholder="Tiêu đề trên (VD: Bài 1: Nhận biết quả táo)">
+      <input type="text" id="inp-sub" placeholder="Chữ nổi bật (VD: Bé học quả táo)">
+      <input type="text" id="inp-icon" placeholder="Biểu tượng/Emoji (VD: 🍎 hoặc dán link ảnh)">
+    </div>
+
+    <div class="btn-group">
+      <button class="btn-add" onclick="addNewCard()">+ Thêm Vào Danh Sách</button>
+      <button class="btn-reset" onclick="resetDefault()">Nạp Mẫu Có Sẵn</button>
+      <button class="btn-print" onclick="window.print()">🖨️ In Thẻ (Khổ A4)</button>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Mã File (videos/..mp4)</th>
+            <th>Tiêu Đề</th>
+            <th>Chữ Nổi Bật</th>
+            <th>Hình/Icon</th>
+            <th>Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="lessonTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VÙNG HIỂN THỊ THẺ ĐỂ IN KHỔ A4 -->
+  <div class="sheet" id="cardContainer"></div>
+
+  <script>
+    // Dữ liệu mẫu đồng bộ với các file video
+    let lessons = [
+      { id: "video1", title: "Bài 1: Nhận biết quả táo", sub: "Bé học quả táo", icon: "🍎" },
+      { id: "video2", title: "Bài 2: Con voi to lớn",     sub: "Chú voi đáng yêu",  icon: "🐘" },
+      { id: "video3", title: "Bài 3: Bé học đếm số",    sub: "Tập đếm 1, 2, 3",   icon: "🔢" },
+      { id: "video4", title: "Bài 4: Màu sắc quanh bé",  sub: "Bé học các màu sắc",icon: "🎨" }
+    ];
+
+    function renderUI() {
+      const container = document.getElementById('cardContainer');
+      const tableBody = document.getElementById('lessonTableBody');
+      
+      container.innerHTML = '';
+      tableBody.innerHTML = '';
+
+      lessons.forEach((item, index) => {
+        // 1. Dựng dòng trên bảng quản lý
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${item.id}</b></td>
+          <td>${item.title}</td>
+          <td>${item.sub}</td>
+          <td>${item.icon.startsWith('http') ? '<img src="'+item.icon+'" style="height:30px">' : item.icon}</td>
+          <td><button class="btn-del" onclick="deleteCard(${index})">Xóa</button></td>
+        `;
+        tableBody.appendChild(tr);
+
+        // 2. Dựng thẻ Flashcard để in
+        const cardWrap = document.createElement('div');
+        cardWrap.className = 'card-border-wrap';
+
+        const iconHtml = item.icon.startsWith('http') 
+          ? `<img src="${item.icon}" alt="icon">` 
+          : item.icon;
+
+        cardWrap.innerHTML = `
+          <div class="card-content">
+            <div class="card-header">${item.title}</div>
+            <div class="card-icon">${iconHtml}</div>
+            <div class="card-sub">${item.sub}</div>
+            <div class="qr-container" id="qr-${item.id}-${index}"></div>
+            <div class="card-footer">Mã thẻ: ${item.id}</div>
+          </div>
+        `;
+        container.appendChild(cardWrap);
+
+        // 3. Render mã QR đồng bộ với hệ thống quét (chỉ mã hóa tên file)
+        new QRCode(document.getElementById(`qr-${item.id}-${index}`), {
+          text: item.id,
+          width: 140,
+          height: 140,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      });
+    }
+
+    function addNewCard() {
+      const id = document.getElementById('inp-id').value.trim();
+      const title = document.getElementById('inp-title').value.trim() || `Bài học: ${id}`;
+      const sub = document.getElementById('inp-sub').value.trim() || id;
+      const icon = document.getElementById('inp-icon').value.trim() || "⭐";
+
+      if (!id) {
+        alert("Vui lòng nhập tên file video!");
+        return;
+      }
+
+      lessons.push({ id, title, sub, icon });
+      renderUI();
+
+      // Reset ô nhập
+      document.getElementById('inp-id').value = '';
+      document.getElementById('inp-title').value = '';
+      document.getElementById('inp-sub').value = '';
+      document.getElementById('inp-icon').value = '';
+    }
+
+    function deleteCard(index) {
+      lessons.splice(index, 1);
+      renderUI();
+    }
+
+    function resetDefault() {
+      lessons = [
+        { id: "video1", title: "Bài 1: Nhận biết quả táo", sub: "Bé học quả táo", icon: "🍎" },
+        { id: "video2", title: "Bài 2: Con voi to lớn",     sub: "Chú voi đáng yêu",  icon: "🐘" },
+        { id: "video3", title: "Bài 3: Bé học đếm số",    sub: "Tập đếm 1, 2, 3",   icon: "🔢" },
+        { id: "video4", title: "Bài 4: Quả chuối chín",    sub: "Quả chuối vàng",    icon: "🍌" }
+      ];
+      renderUI();
+    }
+
+    // Khởi chạy
+    window.addEventListener('DOMContentLoaded', renderUI);
+  </script>
+</body>
+</html>
