@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bé Quét Mã Khám Phá</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%;
+      background: #000;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    /* Khung hiển thị Camera */
+    #scanner-view {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+    }
+    #reader {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    #reader video {
+      object-fit: cover !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Khung viền chỉ dẫn cho bé giơ thẻ */
+    .scan-overlay {
+      position: absolute;
+      width: 250px; height: 250px;
+      border: 4px dashed #ffeb3b;
+      border-radius: 24px;
+      pointer-events: none;
+      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.45);
+      display: flex; justify-content: center; align-items: center;
+    }
+    .scan-guide {
+      position: absolute;
+      top: calc(50% + 145px);
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: 600;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      pointer-events: none;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    /* Khung phát video */
+    #player-view {
+      position: fixed; inset: 0;
+      display: none;
+      background: #000;
+      z-index: 10;
+    }
+    #edu-video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+
+    /* Nút quay lại camera cho bé/cô giáo */
+    .btn-back {
+      position: absolute;
+      top: 16px; left: 16px;
+      background: rgba(255, 255, 255, 0.85);
+      color: #111;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Màn hình quét QR -->
+  <div id="scanner-view">
+    <div id="reader"></div>
+    <div class="scan-overlay"></div>
+    <div class="scan-guide">Bé hãy giơ thẻ vào giữa ô vuông nhé! ✨</div>
+  </div>
+
+  <!-- 2. Màn hình phát video -->
+  <div id="player-view">
+    <button class="btn-back" onclick="resumeScanning()">◀ Quét thẻ khác</button>
+    <video id="edu-video" playsinline controls></video>
+  </div>
+
+  <script>
+    const scannerView = document.getElementById('scanner-view');
+    const playerView = document.getElementById('player-view');
+    const videoElement = document.getElementById('edu-video');
+    
+    let html5QrCode = null;
+    let isProcessing = false;
+
+    function startScanner() {
+      html5QrCode = new Html5Qrcode("reader");
+      const config = { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: window.innerHeight / window.innerWidth
+      };
+
+      // Yêu cầu camera sau (environment)
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess
+      ).catch(err => {
+        console.error("Không thể bật camera:", err);
+        alert("Vui lòng cấp quyền truy cập Camera để bé quét thẻ nhé!");
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      // Mã QR có thể chứa URL hoặc chỉ tên file (VD: 'video1' hoặc 'https://.../?v=video1')
+      let videoId = decodedText.trim();
+      if (videoId.includes('?v=')) {
+        videoId = new URL(videoId).searchParams.get('v');
+      } else if (videoId.startsWith('http')) {
+        const parts = videoId.split('/');
+        videoId = parts[parts.length - 1].replace('.mp4', '');
+      }
+
+      playVideo(videoId);
+    }
+
+    async function playVideo(videoId) {
+      // Tạm dừng camera để tiết kiệm pin và tránh quét trùng
+      if (html5QrCode && html5QrCode.isScanning) {
+        await html5QrCode.stop();
+      }
+
+      scannerView.style.display = 'none';
+      playerView.style.display = 'block';
+
+      videoElement.src = `videos/${videoId}.mp4`;
+      
+      videoElement.play().catch(e => {
+        console.log("Cần chạm để phát âm thanh:", e);
+      });
+
+      // Tự động quay lại màn hình camera khi video kết thúc
+      videoElement.onended = () => {
+        resumeScanning();
+      };
+    }
+
+    function resumeScanning() {
+      videoElement.pause();
+      videoElement.currentTime = 0;
+      playerView.style.display = 'none';
+      scannerView.style.display = 'flex';
+      isProcessing = false;
+      startScanner();
+    }
+
+    // Tự động khởi động camera khi vừa tải trang
+    window.addEventListener('DOMContentLoaded', startScanner);
+  </script>
+</body>
+</html>
