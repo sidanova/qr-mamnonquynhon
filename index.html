@@ -14,7 +14,6 @@
       overflow: hidden;
     }
 
-    /* 1. Màn hình chào */
     #start-screen {
       position: fixed; inset: 0;
       background: linear-gradient(135deg, #ff7043, #ff5722);
@@ -33,7 +32,6 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.3);
     }
 
-    /* 2. Màn hình Camera quét QR */
     #scanner-view {
       position: fixed; inset: 0;
       display: none; justify-content: center; align-items: center;
@@ -62,14 +60,13 @@
       pointer-events: none; text-align: center; width: 90%;
     }
 
-    /* 3. Khung phát video toàn màn hình */
     #player-view {
       position: fixed; inset: 0;
       display: none; background: #000; z-index: 50;
       overflow: hidden;
     }
 
-    /* Ép xoay ngang 90 độ bằng CSS nếu máy đang cầm dọc (Hỗ trợ 100% cả iOS & Android) */
+    /* Ép xoay ngang 90 độ khi cầm máy dọc */
     @media (orientation: portrait) {
       .rotate-container {
         width: 100vh !important;
@@ -81,7 +78,6 @@
         left: 100vw;
       }
     }
-
     @media (orientation: landscape) {
       .rotate-container {
         width: 100vw !important;
@@ -104,7 +100,6 @@
       cursor: pointer; z-index: 60;
     }
 
-    /* Nút bật tiếng nhấp nháy thu hút bé */
     #unmute-badge {
       display: none;
       position: absolute;
@@ -125,23 +120,20 @@
 </head>
 <body>
 
-  <!-- Màn hình chào -->
   <div id="start-screen">
     <h1>Bé Vui Khám Phá 🌟</h1>
     <p>Chạm vào nút để kích hoạt máy quét bài học nhé!</p>
     <button class="btn-start" onclick="initApp()">Bắt Đầu Quét Thẻ 🎬</button>
   </div>
 
-  <!-- Màn hình quét -->
   <div id="scanner-view">
     <div id="reader"></div>
     <div class="scan-overlay"></div>
     <div class="scan-guide">Bé hãy đưa thẻ QR vào ô vàng nhé! ✨</div>
   </div>
 
-  <!-- Trình phát Video -->
   <div id="player-view">
-    <div class="rotate-container" id="rotator">
+    <div class="rotate-container">
       <button class="btn-back" onclick="resumeScanning()">◀ Quét bài khác</button>
       <div id="unmute-badge" onclick="unmuteVideo()">🔊 Chạm bật tiếng</div>
       <video id="edu-video" playsinline webkit-playsinline controls></video>
@@ -151,13 +143,32 @@
   <script>
     let html5QrCode = null;
     let isProcessing = false;
+    const startScreen = document.getElementById('start-screen');
     const scannerView = document.getElementById('scanner-view');
     const playerView = document.getElementById('player-view');
     const videoElement = document.getElementById('edu-video');
     const unmuteBadge = document.getElementById('unmute-badge');
 
+    // Tự động kiểm tra URL khi mở trang (nếu quét từ máy ảnh hệ thống)
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const videoParam = params.get('v');
+
+      if (videoParam) {
+        startScreen.style.display = 'none';
+        playVideoInline(resolveVideoUrl(videoParam));
+      }
+    });
+
+    function resolveVideoUrl(input) {
+      if (input.endsWith('.mp4') || input.startsWith('http')) {
+        return input;
+      }
+      return `videos/${input}.mp4`;
+    }
+
     function initApp() {
-      document.getElementById('start-screen').style.display = 'none';
+      startScreen.style.display = 'none';
       scannerView.style.display = 'flex';
       startScanner();
     }
@@ -167,10 +178,7 @@
         html5QrCode = new Html5Qrcode("reader");
       }
 
-      const config = {
-        fps: 10,
-        qrbox: { width: 240, height: 240 }
-      };
+      const config = { fps: 10, qrbox: { width: 240, height: 240 } };
 
       Html5Qrcode.getCameras().then(devices => {
         if (devices && devices.length > 0) {
@@ -190,29 +198,28 @@
 
     function fallbackStart(config) {
       html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-        .catch(err => {
-          alert("Vui lòng cấp quyền Camera trong Cài đặt trình duyệt nhé!");
-        });
+        .catch(err => alert("Vui lòng cấp quyền Camera trong Cài đặt!"));
     }
 
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
 
-      let scannedContent = decodedText.trim();
-      let videoSrc = "";
+      let scanned = decodedText.trim();
+      let videoTarget = scanned;
 
-      if (scannedContent.endsWith('.mp4') || scannedContent.startsWith('http')) {
-        videoSrc = scannedContent;
-      } else {
-        videoSrc = `videos/${scannedContent}.mp4`;
+      // Xử lý nếu mã QR là dạng link đầy đủ https://.../?v=tenvideo
+      if (scanned.includes('?v=')) {
+        try {
+          const urlObj = new URL(scanned);
+          videoTarget = urlObj.searchParams.get('v') || scanned;
+        } catch (e) {}
       }
 
-      playVideoInline(videoSrc);
+      playVideoInline(resolveVideoUrl(videoTarget));
     }
 
     async function playVideoInline(sourceUrl) {
-      // 1. Tắt camera
       if (html5QrCode && html5QrCode.isScanning) {
         await html5QrCode.stop();
       }
@@ -220,28 +227,21 @@
       scannerView.style.display = 'none';
       playerView.style.display = 'block';
 
-      // 2. Thử xoay hệ thống nếu hỗ trợ, nếu không CSS @media ở trên sẽ tự xử lý xoay 90 độ
       try {
         if (screen.orientation && screen.orientation.lock) {
           await screen.orientation.lock('landscape');
         }
       } catch (e) {}
 
-      // 3. Tải video
       videoElement.src = sourceUrl;
-
-      // 4. Cơ chế Autoplay đảm bảo 100% thành công:
-      // Thử phát có tiếng trước
       videoElement.muted = false;
       let playPromise = videoElement.play();
 
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          // Nếu trình duyệt chặn do có tiếng -> Mute rồi phát ngay lập tức
-          console.log("Trình duyệt chặn tiếng, chuyển sang phát mute:", error);
+        playPromise.catch(() => {
           videoElement.muted = true;
           videoElement.play();
-          unmuteBadge.style.display = 'block'; // Hiện nút "Bật tiếng" cho bé bấm
+          unmuteBadge.style.display = 'block';
         });
       }
 
@@ -259,6 +259,11 @@
       videoElement.pause();
       videoElement.currentTime = 0;
       unmuteBadge.style.display = 'none';
+
+      // Xóa tham số trên thanh URL nếu có
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
 
       try {
         if (screen.orientation && screen.orientation.unlock) {
