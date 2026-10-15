@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Bé Quét Mã Khám Phá</title>
+  <!-- Thư viện quét QR -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,7 +15,7 @@
       overflow: hidden;
     }
 
-    /* 1. Màn hình Chào ban đầu */
+    /* 1. Màn hình Chào (Bắt buộc để xin quyền Camera & Âm thanh) */
     #start-screen {
       position: fixed; inset: 0;
       background: linear-gradient(135deg, #ff7043, #ff5722);
@@ -31,9 +32,7 @@
       font-size: 1.35rem; font-weight: bold;
       border-radius: 50px; cursor: pointer;
       box-shadow: 0 6px 18px rgba(0,0,0,0.3);
-      transition: transform 0.1s;
     }
-    .btn-start:active { transform: scale(0.96); }
 
     /* 2. Màn hình Camera quét QR */
     #scanner-view {
@@ -64,7 +63,7 @@
       pointer-events: none; text-align: center; width: 90%;
     }
 
-    /* 3. Màn hình phát video toàn màn hình ngang */
+    /* 3. Trình phát Video ngay trên trang (Toàn màn hình & Tự xoay ngang) */
     #player-view {
       position: fixed; inset: 0;
       display: none; background: #000; z-index: 50;
@@ -82,7 +81,6 @@
       padding: 12px 20px; border-radius: 30px;
       font-weight: 800; font-size: 1.05rem;
       cursor: pointer; z-index: 60;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
   </style>
 </head>
@@ -91,18 +89,18 @@
   <!-- Màn hình chào -->
   <div id="start-screen">
     <h1>Bé Vui Khám Phá 🌟</h1>
-    <p>Chạm vào nút bên dưới để mở ống kính quét thẻ bài học nhé!</p>
-    <button class="btn-start" onclick="initApp()">Bé Bắt Đầu Xem 🎬</button>
+    <p>Chạm vào nút để bật máy quét thẻ bài học nhé!</p>
+    <button class="btn-start" onclick="initApp()">Bắt Đầu Quét Thẻ 🎬</button>
   </div>
 
-  <!-- Camera quét -->
+  <!-- Khung Camera quét mã -->
   <div id="scanner-view">
     <div id="reader"></div>
     <div class="scan-overlay"></div>
     <div class="scan-guide">Bé hãy giơ thẻ QR vào giữa ô vuông nhé! ✨</div>
   </div>
 
-  <!-- Phát Video -->
+  <!-- Trình phát video nằm cùng trang -->
   <div id="player-view">
     <button class="btn-back" onclick="resumeScanning()">◀ Quét bài khác</button>
     <video id="edu-video" playsinline webkit-playsinline controls></video>
@@ -115,7 +113,7 @@
     const playerView = document.getElementById('player-view');
     const videoElement = document.getElementById('edu-video');
 
-    async function initApp() {
+    function initApp() {
       document.getElementById('start-screen').style.display = 'none';
       scannerView.style.display = 'flex';
       startScanner();
@@ -131,7 +129,7 @@
         qrbox: { width: 250, height: 250 }
       };
 
-      // Tự động tìm camera sau trên thiết bị
+      // Tự động tìm camera sau
       Html5Qrcode.getCameras().then(devices => {
         if (devices && devices.length > 0) {
           let backCamera = devices.find(d => 
@@ -140,7 +138,6 @@
             d.label.toLowerCase().includes("environment")
           );
           const cameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
-
           html5QrCode.start(cameraId, config, onScanSuccess)
             .catch(() => fallbackStart(config));
         } else {
@@ -157,31 +154,37 @@
         });
     }
 
+    // Khi quét trúng mã QR
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
 
-      let videoId = decodedText.trim();
-      if (videoId.includes('?v=')) {
-        videoId = new URL(videoId).searchParams.get('v');
-      } else if (videoId.startsWith('http')) {
-        const parts = videoId.split('/');
-        videoId = parts[parts.length - 1].replace('.mp4', '');
+      let scannedContent = decodedText.trim();
+      let videoSrc = "";
+
+      // 1. Nếu mã QR chứa link file trực tiếp (http... hoặc videos/...)
+      if (scannedContent.endsWith('.mp4') || scannedContent.startsWith('http')) {
+        videoSrc = scannedContent;
+      } 
+      // 2. Nếu mã QR chỉ chứa tên ngắn (ví dụ: video1)
+      else {
+        videoSrc = `videos/${scannedContent}.mp4`;
       }
 
-      playVideo(videoId);
+      playVideoInline(videoSrc);
     }
 
-    async function playVideo(videoId) {
-      // 1. Tạm dừng quét
+    async function playVideoInline(sourceUrl) {
+      // Tắt camera tạm thời
       if (html5QrCode && html5QrCode.isScanning) {
         await html5QrCode.stop();
       }
 
+      // Ẩn camera, hiện trình phát video NGAY TRÊN TRANG (không đi đâu cả)
       scannerView.style.display = 'none';
       playerView.style.display = 'block';
 
-      // 2. Kích hoạt toàn màn hình và Tự động xoay ngang màn hình (Landscape)
+      // Yêu cầu tự xoay ngang màn hình và toàn màn hình
       try {
         if (playerView.requestFullscreen) {
           await playerView.requestFullscreen();
@@ -189,19 +192,18 @@
           await playerView.webkitRequestFullscreen();
         }
 
-        // Khóa màn hình xoay ngang (áp dụng rất nhạy trên Android Chrome)
         if (screen.orientation && screen.orientation.lock) {
           await screen.orientation.lock('landscape');
         }
       } catch (err) {
-        console.log("Xoay ngang màn hình tự động không được hỗ trợ bởi thiết bị này:", err);
+        console.log("Xoay ngang màn hình không được hỗ trợ trên thiết bị này:", err);
       }
 
-      // 3. Tải và phát video
-      videoElement.src = `videos/${videoId}.mp4`;
+      // Nạp link video vừa quét được và tự động play
+      videoElement.src = sourceUrl;
       videoElement.play().catch(e => console.log("Lỗi autoplay:", e));
 
-      // 4. Khi video kết thúc, tự thoát toàn màn hình và quay về camera
+      // Khi bé xem hết bài, tự động thoát xoay ngang và bật lại camera quét
       videoElement.onended = () => {
         resumeScanning();
       };
@@ -211,7 +213,7 @@
       videoElement.pause();
       videoElement.currentTime = 0;
 
-      // Mở khóa xoay màn hình và thoát Fullscreen
+      // Thoát Fullscreen và mở khóa xoay màn hình
       try {
         if (screen.orientation && screen.orientation.unlock) {
           screen.orientation.unlock();
